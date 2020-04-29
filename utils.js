@@ -70,14 +70,17 @@ exports.unicodeToBits = function (chars) {
 exports.unicodeToBitsAsString = function (englishLetters) {
     return exports.displayBits(exports.unicodeToBits(englishLetters));
 };
+/*
+ * Takes message as an English sentence
+ * */
 exports.oneTimePadEncrypt = function (message, key) {
-    if (message.length !== key.length) {
-        throw Error("message and key must be the same length, message length: " + message.length + ", key length: " + key.length);
+    if (key.length < message.length * exports.DEFAULT_UNICODE_LENGTH) {
+        throw Error("Key too small for one time pad");
     }
-    if ((message.charAt(0) !== "0" && message.charAt(0) !== "1") ||
-        (key.charAt(0) !== "0" && key.charAt(0) !== "1")) {
-        throw Error("message and key must be a string of 0's and 1's. Message " + message + ", key: " + key);
+    if (key.charAt(0) !== "0" && key.charAt(0) !== "1") {
+        throw Error("key must be a string of 0's and 1's. Received: " + key);
     }
+    message = exports.unicodeToBitsAsString(exports.padWithSpaces(message, 0, key.length)); // convert to binary string
     return message.split("").reduce(function (prev, curr, index) {
         return prev + (parseInt(curr, 2) ^ parseInt(key[index], 2));
     }, "");
@@ -90,10 +93,24 @@ exports.oneTimePadDecrypt = function (cipherText, key) {
         (key.charAt(0) !== "0" && key.charAt(0) !== "1")) {
         throw Error("Ciphertext and key must be a string of 0's and 1's. Ciphertext " + cipherText + ", key: " + key);
     }
-    return exports.oneTimePadEncrypt(cipherText, key);
+    return exports.binaryToUnicode(cipherText.split("").reduce(function (prev, curr, index) {
+        return prev + (parseInt(curr, 2) ^ parseInt(key[index], 2));
+    }, ""));
 };
+/*
+ * XOR two strings of 1's and 0's together
+ * */
 exports.XORStrings = function (a, b) {
-    return exports.oneTimePadEncrypt(a, b);
+    if (a.length !== b.length) {
+        throw Error("Strings to XOR must be of the same length");
+    }
+    if ((a.charAt(0) !== "0" && a.charAt(0) !== "1") ||
+        (b.charAt(0) !== "0" && b.charAt(0) !== "1")) {
+        throw Error("key must be a string of 0's and 1's. Received: " + a + ", " + b);
+    }
+    return a.split("").reduce(function (prev, curr, index) {
+        return prev + (parseInt(curr, 2) ^ parseInt(b[index], 2));
+    }, "");
 };
 var getRandomKey = function (size) {
     return _.range(0, size)

@@ -70,19 +70,12 @@ describe("Basic strings", () => {
 describe("oneTimePad", () => {
   const key = "11001000100110";
   const message = "CS";
-  const cipherText = oneTimePadEncrypt(
-    displayBits(unicodeToBits(message)),
-    key
-  );
-  const decrypted = oneTimePadDecrypt(cipherText, key);
 
   test("oneTimePadEncrypt works", () => {
-    expect(oneTimePadEncrypt(displayBits(unicodeToBits(message)), key)).toEqual(
-      cipherText
-    );
+    expect(oneTimePadEncrypt(message, key)).toEqual("01001111110101");
   });
 
   test("oneTimePadDecrypt works", () => {
-    expect(binaryToUnicode(decrypted)).toEqual(message);
+    expect(oneTimePadDecrypt("01001111110101", key)).toEqual(message);
   });
 });

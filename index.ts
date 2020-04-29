@@ -1,10 +1,12 @@
 import {
   binaryToUnicode,
+  oneTimePadDecrypt,
   oneTimePadEncrypt,
   padWithSpaces,
   unicodeToBitsAsString,
   XORStrings,
 } from "./utils";
+import * as _ from "lodash";
 
 const SPACE_AS_BITS = unicodeToBitsAsString(" ");
 
@@ -45,20 +47,46 @@ const test = () => {
     "0100100000011100110111101101101000011100110010000100000011100111111101111111100110100010100110001010110101111100010010000010011110001010100110110111011011100010011000001000010110010010001010100101101010011011100011101101000000010010111011001111101101100101010010101111101101001110111010011010010000111110111010111101001110001000110011111111100010001110100100001101100111000010111011000001101001101011011011100100011001110110000010110001110111001001011101011010111011100101000100100001110000001110011001010110010011100000101010101110100011100001001101010100110010010010111110001100111000001101010101010111111010001111000110110011101001001101101110010001011110100000011110111110001101000001000100101100111001001000100100111001100000011100011001100010100011100110010001111011011011011101111100100011001111110101110101000101100011010001011010010110010";
   const M1 = "hello";
   const M2 = "world";
-  const C11 = oneTimePadEncrypt();
-  const C1 = getCipherText(M1, key);
-  const C2 = getCipherText(M2, key);
+  const C1 = oneTimePadEncrypt(M1, key);
+  const C2 = oneTimePadEncrypt(M2, key);
   const C1XORC2 = XORStrings(C1, C2);
-  const possibleMessage1 = binaryToUnicode(
-    XORStrings(unicodeToBitsAsString(padWithSpaces(M2, 0, key.length)), C1XORC2)
-  );
-  const possibleMessage2 = binaryToUnicode(
+  const wordsToCheck = ["hello", "world"];
+  wordsToCheck.forEach((word) => {
+    _.range(0, key.length).forEach((index) => {
+      const possibleMessage = checkWord(word, index, key, C1XORC2);
+      if (checkValid(possibleMessage)) {
+        console.log(
+          `Possible message: ${possibleMessage}. Word: ${word}. Index: ${index}`
+        );
+      }
+    });
+  });
+
+  const b = 2;
+};
+
+const checkWord = (
+  word: string,
+  offset: number,
+  key: string,
+  C1XORC2: string
+) => {
+  return binaryToUnicode(
     XORStrings(
-      unicodeToBitsAsString(padWithSpaces("world", 1, key.length)),
+      unicodeToBitsAsString(padWithSpaces(word, offset, key.length)),
       C1XORC2
     )
   );
-  const b = 2;
+};
+
+const checkValid = (sentence: string): boolean => {
+  let valid = true;
+  for (let i = 0; i < sentence.length; i++) {
+    if (sentence[i].charCodeAt(0) > 126 || sentence[i].charCodeAt(0) < 32) {
+      return false;
+    }
+  }
+  return valid;
 };
 
 const getCipherText = (M1: string, key: string) => {

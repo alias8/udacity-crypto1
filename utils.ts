@@ -60,20 +60,17 @@ export const unicodeToBits = (chars: string): number[] => {
 export const unicodeToBitsAsString = (englishLetters: string): string => {
   return displayBits(unicodeToBits(englishLetters));
 };
+/*
+ * Takes message as an English sentence
+ * */
 export const oneTimePadEncrypt = (message: string, key: string): string => {
-  if (message.length !== key.length) {
-    throw Error(
-      `message and key must be the same length, message length: ${message.length}, key length: ${key.length}`
-    );
+  if (key.length < message.length * DEFAULT_UNICODE_LENGTH) {
+    throw Error(`Key too small for one time pad`);
   }
-  if (
-    (message.charAt(0) !== "0" && message.charAt(0) !== "1") ||
-    (key.charAt(0) !== "0" && key.charAt(0) !== "1")
-  ) {
-    throw Error(
-      `message and key must be a string of 0's and 1's. Message ${message}, key: ${key}`
-    );
+  if (key.charAt(0) !== "0" && key.charAt(0) !== "1") {
+    throw Error(`key must be a string of 0's and 1's. Received: ${key}`);
   }
+  message = unicodeToBitsAsString(padWithSpaces(message, 0, key.length)); // convert to binary string
   return message.split("").reduce((prev, curr, index) => {
     return prev + (parseInt(curr, 2) ^ parseInt(key[index], 2));
   }, "");
@@ -92,10 +89,29 @@ export const oneTimePadDecrypt = (cipherText: string, key: string): string => {
       `Ciphertext and key must be a string of 0's and 1's. Ciphertext ${cipherText}, key: ${key}`
     );
   }
-  return oneTimePadEncrypt(cipherText, key);
+  return binaryToUnicode(
+    cipherText.split("").reduce((prev, curr, index) => {
+      return prev + (parseInt(curr, 2) ^ parseInt(key[index], 2));
+    }, "")
+  );
 };
+
+/*
+ * XOR two strings of 1's and 0's together
+ * */
 export const XORStrings = (a: string, b: string) => {
-  return oneTimePadEncrypt(a, b);
+  if (a.length !== b.length) {
+    throw Error(`Strings to XOR must be of the same length`);
+  }
+  if (
+    (a.charAt(0) !== "0" && a.charAt(0) !== "1") ||
+    (b.charAt(0) !== "0" && b.charAt(0) !== "1")
+  ) {
+    throw Error(`key must be a string of 0's and 1's. Received: ${a}, ${b}`);
+  }
+  return a.split("").reduce((prev, curr, index) => {
+    return prev + (parseInt(curr, 2) ^ parseInt(b[index], 2));
+  }, "");
 };
 
 const getRandomKey = (size: number) => {
