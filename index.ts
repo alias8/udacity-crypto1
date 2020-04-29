@@ -20,44 +20,24 @@ const MAsBits = unicodeToBitsAsString(M);
 
 const SIZE = C1.length;
 
-// for (let i = 0; i < C1.length - M.length; i++) {
-//   let MPrime = _.padStart(MAsBits, i, SPACE_AS_BITS);
-//   MPrime = _.padEnd(MPrime, C1.length, SPACE_AS_BITS);
-//   const possibleMessage = XORStrings(MPrime, C1XORC2);
-//   const unicode = binaryToUnicode(possibleMessage);
-//   let valid = true;
-//   for (let j = 0; j < unicode.length; j++) {
-//     // if any non latin character encountered
-//     if (unicode[j].charCodeAt(0) < 32 || unicode[j].charCodeAt(0) > 126) {
-//       valid = false;
-//       break;
-//     }
-//   }
-//   if (valid) {
-//     console.log(
-//       `${i} -----------------------------------------------------------------------`
-//     );
-//     console.log(unicode);
-//   }
-//   const a = 2;
-// }
-
+/*
+ * Runs one time pad decryption on known strings so you can see what happens
+ * */
 const test = () => {
   const key =
     "0100100000011100110111101101101000011100110010000100000011100111111101111111100110100010100110001010110101111100010010000010011110001010100110110111011011100010011000001000010110010010001010100101101010011011100011101101000000010010111011001111101101100101010010101111101101001110111010011010010000111110111010111101001110001000110011111111100010001110100100001101100111000010111011000001101001101011011011100100011001110110000010110001110111001001011101011010111011100101000100100001110000001110011001010110010011100000101010101110100011100001001101010100110010010010111110001100111000001101010101010111111010001111000110110011101001001101101110010001011110100000011110111110001101000001000100101100111001001000100100111001100000011100011001100010100011100110010001111011011011011101111100100011001111110101110101000101100011010001011010010110010";
-  const M1 = "hello";
-  const M2 = "world";
+  const M1 = "         123456789 the test"; // will be unknown
+  const M2 = "123456789 the test"; // change this value. When "M" comes out as something like an english sentence, hardcode those values into your guess for M2
   const C1 = oneTimePadEncrypt(M1, key);
   const C2 = oneTimePadEncrypt(M2, key);
   const C1XORC2 = XORStrings(C1, C2);
-  const wordsToCheck = ["hello", "world"];
+  const wordsToCheck = ["123456789 the test"];
   wordsToCheck.forEach((word) => {
     _.range(0, key.length).forEach((index) => {
-      const possibleMessage = checkWord(word, index, key, C1XORC2);
-      if (checkValid(possibleMessage)) {
-        console.log(
-          `Possible message: ${possibleMessage}. Word: ${word}. Index: ${index}`
-        );
+      const M_Prime = padWithSpaces(word, index, key.length);
+      const M = testPossibleM_Prime(M_Prime, C1XORC2);
+      if (checkValid(M)) {
+        console.log(`M: ${M}. M_Prime: ${M_Prime}.`);
       }
     });
   });
@@ -65,20 +45,16 @@ const test = () => {
   const b = 2;
 };
 
-const checkWord = (
-  word: string,
-  offset: number,
-  key: string,
-  C1XORC2: string
-) => {
-  return binaryToUnicode(
-    XORStrings(
-      unicodeToBitsAsString(padWithSpaces(word, offset, key.length)),
-      C1XORC2
-    )
-  );
+/*
+ * Function for checking result of M_Prime XOR with C1 XOR C2
+ * */
+const testPossibleM_Prime = (M_Prime: string, C1XORC2: string) => {
+  return binaryToUnicode(XORStrings(unicodeToBitsAsString(M_Prime), C1XORC2));
 };
 
+/*
+ * Checks if message contains all latin characters
+ * */
 const checkValid = (sentence: string): boolean => {
   let valid = true;
   for (let i = 0; i < sentence.length; i++) {
@@ -87,13 +63,6 @@ const checkValid = (sentence: string): boolean => {
     }
   }
   return valid;
-};
-
-const getCipherText = (M1: string, key: string) => {
-  return oneTimePadEncrypt(
-    unicodeToBitsAsString(padWithSpaces(M1, 0, key.length)),
-    key
-  );
 };
 
 test();
