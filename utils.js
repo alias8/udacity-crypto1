@@ -112,7 +112,7 @@ exports.XORStrings = function (a, b) {
         return prev + (parseInt(curr, 2) ^ parseInt(b[index], 2));
     }, "");
 };
-var getRandomKey = function (size) {
+exports.getRandomKey = function (size) {
     return _.range(0, size)
         .map(function (index) { return Math.round(Math.random()).toString(); })
         .join("");

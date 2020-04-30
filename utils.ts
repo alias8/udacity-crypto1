@@ -114,7 +114,7 @@ export const XORStrings = (a: string, b: string) => {
   }, "");
 };
 
-const getRandomKey = (size: number) => {
+export const getRandomKey = (size: number) => {
   return _.range(0, size)
     .map((index) => Math.round(Math.random()).toString())
     .join("");
