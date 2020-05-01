@@ -14,12 +14,33 @@ var utils_1 = require("./utils");
 var _ = __importStar(require("lodash"));
 var fs_1 = __importDefault(require("fs"));
 var chalk_1 = __importDefault(require("chalk"));
+var allowedOneLetterWords = {
+    i: true,
+    a: true,
+};
+// there are too many uncommon two letter words that we want to filter out
+var allowedTwoLetterWords = {
+    of: true,
+    is: true,
+    be: true,
+    to: true,
+    in: true,
+    it: true,
+    or: true,
+    us: true,
+    so: true,
+    ok: true,
+};
 var SPACER = "_";
 var text = fs_1.default.readFileSync("./data/text.txt", "utf8");
 var textByLine = text
     .split(/\r\n/)
-    .filter(function (word) { return word.length >= 2; })
-    .slice(0, 5000);
+    .filter(function (word) {
+    return word.length >= 3 ||
+        allowedTwoLetterWords[word] ||
+        allowedOneLetterWords[word];
+})
+    .slice(0, 1000);
 /*
  * Define lookup table that counts the number of times a suffix and prefix
  * appears in the 30,000 word list. Suffixes and prefixes are max 3 letters long.
@@ -27,7 +48,7 @@ var textByLine = text
  * */
 var partialWordFreq = {};
 textByLine.forEach(function (word) {
-    var min = 3;
+    var min = 2;
     for (var i = 0; i <= word.length - min; i++) {
         var suffix = word.slice(i);
         addToList(word, suffix);
@@ -78,7 +99,12 @@ var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
     }).join("");
     console.log(chalk_1.default.green("M_Prime so far: \"" + MPrimeSoFarAsString + "\""));
     console.log(chalk_1.default.green("      M so far: \"" + testPossibleM_Prime(MPrimeSoFarAsString, C1XORC2) + "\""));
+    var distanceBetwenUpdates = 100;
+    var rollingAverage = [];
+    var previousValidCount = 0;
     var valid = [];
+    var hrStart = process.hrtime();
+    var hrEnd;
     textByLine.forEach(function (word, wordCount) {
         _.range(0, C.length / utils_1.DEFAULT_UNICODE_LENGTH - word.length).forEach(function (numberOfLeadingSpaces) {
             // if all slots we are looking at are spacers
@@ -90,32 +116,41 @@ var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
                 var sectionOfInterest = M.slice(start, end);
                 var sections = sectionOfInterest.split(" ").filter(function (o) { return o.length; });
                 // everything should satisfy the regex i.e. letters and spaces only
-                if (sections.every(function (o) { return checkValidWithRegex(o); })) {
-                    // at least one section should be a letter combo that might occur in english
-                    if (sections.some(function (o) { return checkValidWithLookup(o); })) {
-                        valid.push({
-                            M: M,
-                            start: start,
-                            end: end,
-                            freq: sections.length === 1
-                                ? partialWordFreq[sectionOfInterest.trim()].freq
-                                : undefined,
-                            word: word,
-                        });
-                    }
+                if (sections.every(function (o) { return checkValidWithLookup(o); })) {
+                    valid.push({
+                        M: M,
+                        start: start,
+                        end: end,
+                        freq: sections.length === 1
+                            ? partialWordFreq[sectionOfInterest.trim()].freq
+                            : sections.reduce(function (acc, prev) {
+                                return acc + partialWordFreq[prev.trim()].freq;
+                            }, 0),
+                        word: word,
+                        sections: sections.length,
+                    });
                 }
             }
         });
-        if (wordCount % 100 === 0) {
-            console.log("up to count: " + wordCount + ", valid count: " + valid.length);
+        if (wordCount % distanceBetwenUpdates === 0) {
+            hrEnd = process.hrtime(hrStart);
+            var totalSeconds = hrEnd[0] + hrEnd[1] / Math.pow(10, 9);
+            rollingAverage.push(valid.length - previousValidCount);
+            if (rollingAverage.length > 10) {
+                rollingAverage.shift();
+            }
+            var average = Math.round(_.mean(rollingAverage));
+            previousValidCount = valid.length;
+            console.log("up to count: " + wordCount + ", valid count: " + valid.length + ". Rolling average: " + average + " per " + distanceBetwenUpdates + " words. Processing: " + Math.round(distanceBetwenUpdates / totalSeconds) + " words per second");
+            hrStart = process.hrtime();
         }
     });
     valid = _.orderBy(valid, [function (o) { return o.word.length; }, function (o) { return o.freq; }], ["desc", "desc"]);
-    var definedFreq = valid.filter(function (o) { return o.freq; });
-    var unDefinedFreq = valid.filter(function (o) { return !o.freq; });
-    console.log(chalk_1.default.blue("Words with defined freq might be present in M_Prime"));
-    definedFreq.forEach(function (entry) { return print(entry); });
-    console.log(chalk_1.default.blue("\n\nWords with undefined freq might be present in M. The highlighted green section is the string in M_Prime"));
+    var singleSection = valid.filter(function (o) { return o.sections === 1; });
+    var unDefinedFreq = valid.filter(function (o) { return o.sections !== 1; });
+    console.log(chalk_1.default.blue("Words with single section might be present in M_Prime"));
+    singleSection.forEach(function (entry) { return print(entry); });
+    console.log(chalk_1.default.blue("\n\nWords with multiple sections might be present in M. The highlighted green section is the string in M_Prime"));
     unDefinedFreq.forEach(function (entry) { return print(entry); });
 };
 var print = function (_a) {
@@ -125,7 +160,7 @@ var print = function (_a) {
         chalk_1.default.green(M.slice(start, end)) +
         M.slice(end) +
         "\"" +
-        ("              from: " + start + " to " + end + ", freq: " + freq + ", word: " + word));
+        ("     from: " + start + " to " + end + ", freq: " + freq + ", word: " + word));
 };
 /*
  * Function for checking result of M_Prime XOR with C1 XOR C2. PAss in M_Prime as an english string, returns english string
@@ -163,9 +198,18 @@ function myTest() {
      * is the index at which the WORD starts, not any trailing spaces. Subtract
      * ones from the index if you have a preceding space.
      * */
-    var wordsInMPrimeSoFar = {};
+    var wordsInMPrimeSoFar = {
+    // " and unity of ": [85],
+    // "society ": [0],
+    // " often ": [9],
+    // " and eth ": [59],
+    };
     // swap out M for M prime if you're sure about some of the words in M
-    var wordsInMSoFar = {};
+    var wordsInMSoFar = {
+    // " made from fi": [15],
+    // " harvesting ": [86],
+    // " shrimp ": [59],
+    };
     crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
 }
 function udacityTest() {

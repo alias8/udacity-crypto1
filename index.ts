@@ -18,14 +18,43 @@ interface IPrint {
   end: number;
   freq?: number;
   word: string;
+  sections: number;
 }
+
+interface IWordList {
+  [word: string]: boolean;
+}
+
+const allowedOneLetterWords: IWordList = {
+  i: true,
+  a: true,
+};
+
+// there are too many uncommon two letter words that we want to filter out
+const allowedTwoLetterWords: IWordList = {
+  of: true,
+  is: true,
+  be: true,
+  to: true,
+  in: true,
+  it: true,
+  or: true,
+  us: true,
+  so: true,
+  ok: true,
+};
 
 const SPACER = "_";
 const text = fs.readFileSync("./data/text.txt", "utf8");
 const textByLine = text
   .split(/\r\n/)
-  .filter((word) => word.length >= 2)
-  .slice(0, 5000);
+  .filter(
+    (word) =>
+      word.length >= 3 ||
+      allowedTwoLetterWords[word] ||
+      allowedOneLetterWords[word]
+  )
+  .slice(0, 1000);
 
 /*
  * Define lookup table that counts the number of times a suffix and prefix
@@ -39,7 +68,7 @@ const partialWordFreq: {
   };
 } = {};
 textByLine.forEach((word) => {
-  const min = 3;
+  const min = 2;
   for (let i = 0; i <= word.length - min; i++) {
     const suffix = word.slice(i);
     addToList(word, suffix);
@@ -104,7 +133,12 @@ const crackOneTimePad = (
       `      M so far: "${testPossibleM_Prime(MPrimeSoFarAsString, C1XORC2)}"`
     )
   );
+  const distanceBetwenUpdates = 100;
+  let rollingAverage: number[] = [];
+  let previousValidCount: number = 0;
   let valid: IPrint[] = [];
+  let hrStart = process.hrtime();
+  let hrEnd;
   textByLine.forEach((word, wordCount) => {
     _.range(0, C.length / DEFAULT_UNICODE_LENGTH - word.length).forEach(
       (numberOfLeadingSpaces) => {
@@ -123,26 +157,41 @@ const crackOneTimePad = (
           const sectionOfInterest = M.slice(start, end);
           const sections = sectionOfInterest.split(" ").filter((o) => o.length);
           // everything should satisfy the regex i.e. letters and spaces only
-          if (sections.every((o) => checkValidWithRegex(o))) {
-            // at least one section should be a letter combo that might occur in english
-            if (sections.some((o) => checkValidWithLookup(o))) {
-              valid.push({
-                M,
-                start,
-                end,
-                freq:
-                  sections.length === 1
-                    ? partialWordFreq[sectionOfInterest.trim()].freq
-                    : undefined,
-                word,
-              });
-            }
+          if (sections.every((o) => checkValidWithLookup(o))) {
+            valid.push({
+              M,
+              start,
+              end,
+              freq:
+                sections.length === 1
+                  ? partialWordFreq[sectionOfInterest.trim()].freq
+                  : sections.reduce((acc, prev) => {
+                      return acc + partialWordFreq[prev.trim()].freq;
+                    }, 0),
+              word,
+              sections: sections.length,
+            });
           }
         }
       }
     );
-    if (wordCount % 100 === 0) {
-      console.log(`up to count: ${wordCount}, valid count: ${valid.length}`);
+    if (wordCount % distanceBetwenUpdates === 0) {
+      hrEnd = process.hrtime(hrStart);
+      const totalSeconds = hrEnd[0] + hrEnd[1] / 10 ** 9;
+      rollingAverage.push(valid.length - previousValidCount);
+      if (rollingAverage.length > 10) {
+        rollingAverage.shift();
+      }
+      const average = Math.round(_.mean(rollingAverage));
+      previousValidCount = valid.length;
+      console.log(
+        `up to count: ${wordCount}, valid count: ${
+          valid.length
+        }. Rolling average: ${average} per ${distanceBetwenUpdates} words. Processing: ${Math.round(
+          distanceBetwenUpdates / totalSeconds
+        )} words per second`
+      );
+      hrStart = process.hrtime();
     }
   });
 
@@ -151,15 +200,15 @@ const crackOneTimePad = (
     [(o) => o.word.length, (o) => o.freq],
     ["desc", "desc"]
   );
-  const definedFreq = valid.filter((o) => o.freq);
-  const unDefinedFreq = valid.filter((o) => !o.freq);
+  const singleSection = valid.filter((o) => o.sections === 1);
+  const unDefinedFreq = valid.filter((o) => o.sections !== 1);
   console.log(
-    chalk.blue("Words with defined freq might be present in M_Prime")
+    chalk.blue("Words with single section might be present in M_Prime")
   );
-  definedFreq.forEach((entry) => print(entry));
+  singleSection.forEach((entry) => print(entry));
   console.log(
     chalk.blue(
-      "\n\nWords with undefined freq might be present in M. The highlighted green section is the string in M_Prime"
+      "\n\nWords with multiple sections might be present in M. The highlighted green section is the string in M_Prime"
     )
   );
   unDefinedFreq.forEach((entry) => print(entry));
@@ -172,7 +221,7 @@ const print = ({ M, start, end, freq, word }: IPrint) => {
       chalk.green(M.slice(start, end)) +
       M.slice(end) +
       `"` +
-      `              from: ${start} to ${end}, freq: ${freq}, word: ${word}`
+      `     from: ${start} to ${end}, freq: ${freq}, word: ${word}`
   );
 };
 
@@ -221,10 +270,19 @@ function myTest() {
    * is the index at which the WORD starts, not any trailing spaces. Subtract
    * ones from the index if you have a preceding space.
    * */
-  const wordsInMPrimeSoFar: { [word: string]: number[] } = {};
+  const wordsInMPrimeSoFar: { [word: string]: number[] } = {
+    // " and unity of ": [85],
+    // "society ": [0],
+    // " often ": [9],
+    // " and eth ": [59],
+  };
 
   // swap out M for M prime if you're sure about some of the words in M
-  const wordsInMSoFar: { [word: string]: number[] } = {};
+  const wordsInMSoFar: { [word: string]: number[] } = {
+    // " made from fi": [15],
+    // " harvesting ": [86],
+    // " shrimp ": [59],
+  };
 
   crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
 }
