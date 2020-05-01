@@ -22,11 +22,15 @@ interface IPrint {
 
 const SPACER = "_";
 const text = fs.readFileSync("./data/text.txt", "utf8");
-const textByLine = text.split(/\r\n/).filter((word) => word.length >= 2);
-// .slice(0, 1000);
+const textByLine = text
+  .split(/\r\n/)
+  .filter((word) => word.length >= 2)
+  .slice(0, 1000);
+
 /*
  * Define lookup table that counts the number of times a suffix and prefix
  * appears in the 30,000 word list. Suffixes and prefixes are max 3 letters long.
+ * This is a lookup table so we can lookup if a letter combo can be present in english
  * */
 const partialWordFreq: {
   [uffix: string]: {
@@ -54,16 +58,13 @@ textByLine.forEach((word) => {
       };
     } else {
       const wordList = partialWordFreq[suffix].wordList;
-      if (!wordList) {
-        const g = 2;
-      }
       if (!wordList.includes(word)) {
         wordList.push(word);
+        partialWordFreq[suffix] = {
+          freq: partialWordFreq[suffix].freq,
+          wordList,
+        };
       }
-      partialWordFreq[suffix] = {
-        freq: partialWordFreq[suffix].freq,
-        wordList,
-      };
     }
   }
 });
@@ -104,49 +105,27 @@ const crackOneTimePad = (
     )
   );
   let valid: IPrint[] = [];
-  ["shannon"].forEach((word, wordCount) => {
-    _.range(0, C.length / DEFAULT_UNICODE_LENGTH).forEach(
-      (numberOfLeadingSpaces, index, array) => {
-        if (numberOfLeadingSpaces === 120) {
-          const g = 2;
-        }
-        let tempWord = word;
+  textByLine.forEach((word, wordCount) => {
+    _.range(0, C.length / DEFAULT_UNICODE_LENGTH - word.length).forEach(
+      (numberOfLeadingSpaces) => {
+        // if all slots we are looking at are spacers
         if (
-          numberOfLeadingSpaces + tempWord.length >
-          C.length / DEFAULT_UNICODE_LENGTH
+          MPrimeSoFar.slice(
+            numberOfLeadingSpaces + 1,
+            numberOfLeadingSpaces + 1 + word.length
+          ).every((o) => o === SPACER)
         ) {
-          // need to shorten the word being tested
-          tempWord = tempWord.slice(1);
-        }
-        // todo: need to fix this overlap thing, make sure that words can go all the way to the end
-        // about 121 loops, we should skip if insertion not possible
-        let overlap = false;
-        for (
-          let i = numberOfLeadingSpaces;
-          i < numberOfLeadingSpaces + tempWord.length;
-          i++
-        ) {
-          if (MPrimeSoFar[i] !== SPACER) {
-            overlap = true;
-            break;
-          }
-        }
-        if (!overlap) {
-          const M_Prime = padWithSpaces(
-            tempWord,
-            numberOfLeadingSpaces,
-            C.length
-          );
+          const M_Prime = padWithSpaces(word, numberOfLeadingSpaces, C.length);
           const M = testPossibleM_Prime(M_Prime, C1XORC2);
           const start =
             numberOfLeadingSpaces - (numberOfLeadingSpaces === 0 ? 0 : 1);
-          const end = numberOfLeadingSpaces + tempWord.length + 1; // plus one for the space
+          const end = numberOfLeadingSpaces + word.length + 1; // plus one for the space
           const sectionOfInterest = M.slice(start, end);
           const sections = sectionOfInterest.split(" ").filter((o) => o.length);
+          // everything should satisfy the regex i.e. letters and spaces only
           if (sections.every((o) => checkValidWithRegex(o))) {
-            // everything should satisfy the regex
+            // at least one section should be a letter combo that might occur in english
             if (sections.some((o) => checkValidWithLookup(o))) {
-              // some satisfy lookup is ok
               valid.push({
                 M,
                 start,
@@ -155,7 +134,7 @@ const crackOneTimePad = (
                   sections.length === 1
                     ? partialWordFreq[sectionOfInterest.trim()].freq
                     : undefined,
-                word: tempWord,
+                word,
               });
             }
           }
@@ -174,10 +153,14 @@ const crackOneTimePad = (
   );
   const definedFreq = valid.filter((o) => o.freq);
   const unDefinedFreq = valid.filter((o) => !o.freq);
-  chalk.blue("Words with defined freq might be present in M_Prime");
+  console.log(
+    chalk.blue("Words with defined freq might be present in M_Prime")
+  );
   definedFreq.forEach((entry) => print(entry));
-  chalk.blue(
-    "\n\nWords with undefined freq might be present in M. The highlighted green section is the string in M_Prime"
+  console.log(
+    chalk.blue(
+      "\n\nWords with undefined freq might be present in M. The highlighted green section is the string in M_Prime"
+    )
   );
   unDefinedFreq.forEach((entry) => print(entry));
 };
@@ -224,36 +207,26 @@ function myTest() {
   const k =
     "0100111100011100010011100100011000111010110001110011000111011010010110110111001001111111100011100101110110001100010100100011001111011000101010100000001101000010011100010000000000110111111010100011100110101101011000010111011100100010011001011001111110010010011011010001001011110100011010000001101111000000100100001001000110101111010001110111110101011011110111001101001101000100001001011001100110100010011001010010110110000100001110001000010110100101110001110010010101010111001111011001111100011100111000010010011001010110010100010101011001101001101011111111100101010100011000101111110100100110000011111011010010101000101110111110100100011010010101000000011001001101101011001101111001001000110111001001100101110010101011001000011100111100101010101011001001111010001111000011101001000010110000001101110010110011110000000000000010011110100100000011010";
   const M =
-    "Creates an array of elements, sorted in ascending order by the results of running each element in a collection thru each ";
+    "Seafood is food made from fish or other sea animals (such as shrimp and lobsters). The harvesting (collecting) of seafood";
   const M_Prime =
-    "Gets the size of collection by returning its length for array-like values or the number of own enumerable string keyed pr";
+    "Society is often considered in terms of citizenship, rights, and ethics. The strength and unity of any society's members'";
   const M_Prime_almost =
-    "     the size    collection by           its length for array-like           the        of own enumerable                ";
+    "Society    often considered    terms    citizenship  rights            . The          and unity                  members ";
   const C =
     "1100100011010111011000000101100010100011101111101001000100011001111000100111010001100001110100101110110101110101000100111000110011101010101001101011100001110000100111001100101110001100010011010000110000100101010110001001100011000111101101101011000111010110011101110110010111010100101010111101010011011110110011010100100010011011101010011011001111011000101000111111111111011101010111001011100101100111100000000010101011001001001000011101010111010111000011001110101011111001111100110000001111001100100011101110101011010101110001100000101110110010000110110001011110011010111000011101001100111010011101011010010011001101011000100111111001110100000010011101101101011101110001010000001011001011110101101001010100001001010110101110101111110111001001010001010011100111110001111010101000110110000100010001011100011001110011001011100011101111011110000111010";
   const C_Prime =
     "1100000010001011111010010111001000100111111100110101010010011011100101000011110111010011001001100110101001101010000100111011110010100110011001111001101000110011100001011101001110001000100110000011010111110011001100010000010111101001101101100011000010111111101101110110010110010011001010011011110001100111101001001000101010011101101010011011001010001000100111101101111110011111110111001011100101100001101011101011101110011011000100111111001111001100000100001011000001010000010100011010010000100110000001001100000011010101001011100111001001110100100110111001110000010101110110010101001111111010010101101100110110001000011001000111000000011100101010101111110111011101110010010000001110011111101100101100011100101010110111011110101111110110001010010010110100110100011001100100110100100101100000010111001110011100010111001011100110001110111000001101000";
-  const b = testPossibleM_Prime(M_Prime_almost, XORStrings(C, C_Prime)); // see how close the output looks when we almost have it
+  const b = testPossibleM_Prime(M_Prime_almost, XORStrings(C, C_Prime)); // see how close the output looks when we almost have it?
 
   /*
    * Make sure to have the keys with included spaces around them. The number
    * is the index at which the WORD starts, not any trailing spaces. Subtract
    * ones from the index if you have a preceding space.
    * */
-  const wordsInMPrimeSoFar: { [word: string]: number[] } = {
-    " collection by ": [16], //
-    " length ": [44],
-    " number ": [80],
-    "like valu": [62], //
-    "gets the ": [0], //
-    " erable string ": [98], //
-    " the ": [76],
-    " returning its": [30],
-    // shannon: [112],
-    // the: [89],
-    // digit: [61],
-    // time: [13],
-  };
+  const wordsInMPrimeSoFar: { [word: string]: number[] } = {};
+
+  // swap out M for M prime if you're sure about some of the words in M
+  const wordsInMSoFar: { [word: string]: number[] } = {};
 
   crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
 }
@@ -273,8 +246,11 @@ function udacityTest() {
    * */
   const wordsInMPrimeSoFar: { [word: string]: number[] } = {
     // shannon: [112],
+    // the: [89],
+    // digit: [61],
+    // time: [13],
   };
   crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
 }
 
-udacityTest();
+myTest();
