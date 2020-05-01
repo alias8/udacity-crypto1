@@ -79,7 +79,8 @@ textByLine.forEach(function (word) {
 /*
  * Runs one time pad decryption on known strings so you can see what happens
  * */
-var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
+var crackOneTimePad = function (_a) {
+    var C = _a.C, C_Prime = _a.C_Prime, wordsInMPrimeSoFar = _a.wordsInMPrimeSoFar, realM_Prime = _a.realM_Prime;
     var C1XORC2 = utils_1.XORStrings(C, C_Prime);
     var MPrimeSoFar = _.range(0, C.length / utils_1.DEFAULT_UNICODE_LENGTH).map(function (index) { return SPACER; });
     Object.entries(wordsInMPrimeSoFar).forEach(function (_a) {
@@ -99,7 +100,7 @@ var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
     }).join("");
     console.log(chalk_1.default.green("M_Prime so far: \"" + MPrimeSoFarAsString + "\""));
     console.log(chalk_1.default.green("      M so far: \"" + testPossibleM_Prime(MPrimeSoFarAsString, C1XORC2) + "\""));
-    var distanceBetwenUpdates = 100;
+    var distanceBetweenUpdates = 100;
     var rollingAverage = [];
     var previousValidCount = 0;
     var valid = [];
@@ -118,6 +119,7 @@ var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
                 // everything should satisfy the regex i.e. letters and spaces only
                 if (sections.every(function (o) { return checkValidWithLookup(o); })) {
                     valid.push({
+                        realM_Prime: realM_Prime,
                         M: M,
                         start: start,
                         end: end,
@@ -132,7 +134,7 @@ var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
                 }
             }
         });
-        if (wordCount % distanceBetwenUpdates === 0) {
+        if (wordCount % distanceBetweenUpdates === 0) {
             hrEnd = process.hrtime(hrStart);
             var totalSeconds = hrEnd[0] + hrEnd[1] / Math.pow(10, 9);
             rollingAverage.push(valid.length - previousValidCount);
@@ -141,7 +143,7 @@ var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
             }
             var average = Math.round(_.mean(rollingAverage));
             previousValidCount = valid.length;
-            console.log("up to count: " + wordCount + ", valid count: " + valid.length + ". Rolling average: " + average + " per " + distanceBetwenUpdates + " words. Processing: " + Math.round(distanceBetwenUpdates / totalSeconds) + " words per second");
+            console.log("up to count: " + wordCount + ", valid count: " + valid.length + ". Rolling average: " + average + " per " + distanceBetweenUpdates + " words. Processing: " + Math.round(distanceBetweenUpdates / totalSeconds) + " words per second");
             hrStart = process.hrtime();
         }
     });
@@ -154,13 +156,23 @@ var crackOneTimePad = function (C, C_Prime, wordsInMPrimeSoFar) {
     unDefinedFreq.forEach(function (entry) { return print(entry); });
 };
 var print = function (_a) {
-    var M = _a.M, start = _a.start, end = _a.end, freq = _a.freq, word = _a.word;
-    console.log("\"" +
+    var M = _a.M, start = _a.start, end = _a.end, freq = _a.freq, word = _a.word, realM_Prime = _a.realM_Prime;
+    console.log("predicted M_Prime: " +
+        "\"" +
         M.slice(0, start) +
         chalk_1.default.green(M.slice(start, end)) +
         M.slice(end) +
         "\"" +
         ("     from: " + start + " to " + end + ", freq: " + freq + ", word: " + word));
+    if (realM_Prime) {
+        console.log("real M_prime:      " +
+            "\"" +
+            realM_Prime.slice(0, start) +
+            chalk_1.default.green(realM_Prime.slice(start, end)) +
+            realM_Prime.slice(end) +
+            "\"");
+    }
+    console.log("\n");
 };
 /*
  * Function for checking result of M_Prime XOR with C1 XOR C2. PAss in M_Prime as an english string, returns english string
@@ -187,8 +199,8 @@ var checkValidWithRegex = function (sentence) {
 // test(C1, C2)
 function myTest() {
     var k = "0100111100011100010011100100011000111010110001110011000111011010010110110111001001111111100011100101110110001100010100100011001111011000101010100000001101000010011100010000000000110111111010100011100110101101011000010111011100100010011001011001111110010010011011010001001011110100011010000001101111000000100100001001000110101111010001110111110101011011110111001101001101000100001001011001100110100010011001010010110110000100001110001000010110100101110001110010010101010111001111011001111100011100111000010010011001010110010100010101011001101001101011111111100101010100011000101111110100100110000011111011010010101000101110111110100100011010010101000000011001001101101011001101111001001000110111001001100101110010101011001000011100111100101010101011001001111010001111000011101001000010110000001101110010110011110000000000000010011110100100000011010";
-    var M = "Seafood is food made from fish or other sea animals (such as shrimp and lobsters). The harvesting (collecting) of seafood";
     var M_Prime = "Society is often considered in terms of citizenship, rights, and ethics. The strength and unity of any society's members'";
+    var M = "Seafood is food made from fish or other sea animals (such as shrimp and lobsters). The harvesting (collecting) of seafood";
     var M_Prime_almost = "Society    often considered    terms    citizenship  rights            . The          and unity                  members ";
     var C = utils_1.XORStrings(utils_1.unicodeToBitsAsString(M), k);
     var C_Prime = utils_1.XORStrings(utils_1.unicodeToBitsAsString(M_Prime), k);
@@ -196,7 +208,7 @@ function myTest() {
     /*
      * Make sure to have the keys with included spaces around them. The number
      * is the index at which the WORD starts, not any trailing spaces. Subtract
-     * ones from the index if you have a preceding space.
+     * one from the index if you have a preceding space.
      * */
     var wordsInMPrimeSoFar = {
     // " and unity of ": [85],
@@ -210,7 +222,7 @@ function myTest() {
     // " harvesting ": [86],
     // " shrimp ": [59],
     };
-    crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
+    crackOneTimePad({ C: C, C_Prime: C_Prime, wordsInMPrimeSoFar: wordsInMPrimeSoFar, realM_Prime: M_Prime });
 }
 function udacityTest() {
     /*
@@ -229,7 +241,7 @@ function udacityTest() {
     // digit: [61],
     // time: [13],
     };
-    crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
+    crackOneTimePad({ C: C, C_Prime: C_Prime, wordsInMPrimeSoFar: wordsInMPrimeSoFar });
 }
 myTest();
 //# sourceMappingURL=index.js.map

@@ -13,6 +13,7 @@ import fs from "fs";
 import chalk from "chalk";
 
 interface IPrint {
+  realM_Prime?: string;
   M: string;
   start: number;
   end: number;
@@ -101,11 +102,17 @@ textByLine.forEach((word) => {
 /*
  * Runs one time pad decryption on known strings so you can see what happens
  * */
-const crackOneTimePad = (
-  C: string,
-  C_Prime: string,
-  wordsInMPrimeSoFar: { [word: string]: number[] }
-) => {
+const crackOneTimePad = ({
+  C,
+  C_Prime,
+  wordsInMPrimeSoFar,
+  realM_Prime,
+}: {
+  C: string;
+  C_Prime: string;
+  wordsInMPrimeSoFar: { [word: string]: number[] };
+  realM_Prime?: string;
+}) => {
   const C1XORC2 = XORStrings(C, C_Prime);
   let MPrimeSoFar = _.range(0, C.length / DEFAULT_UNICODE_LENGTH).map(
     (index) => SPACER
@@ -133,7 +140,7 @@ const crackOneTimePad = (
       `      M so far: "${testPossibleM_Prime(MPrimeSoFarAsString, C1XORC2)}"`
     )
   );
-  const distanceBetwenUpdates = 100;
+  const distanceBetweenUpdates = 100;
   let rollingAverage: number[] = [];
   let previousValidCount: number = 0;
   let valid: IPrint[] = [];
@@ -159,6 +166,7 @@ const crackOneTimePad = (
           // everything should satisfy the regex i.e. letters and spaces only
           if (sections.every((o) => checkValidWithLookup(o))) {
             valid.push({
+              realM_Prime: realM_Prime,
               M,
               start,
               end,
@@ -175,7 +183,7 @@ const crackOneTimePad = (
         }
       }
     );
-    if (wordCount % distanceBetwenUpdates === 0) {
+    if (wordCount % distanceBetweenUpdates === 0) {
       hrEnd = process.hrtime(hrStart);
       const totalSeconds = hrEnd[0] + hrEnd[1] / 10 ** 9;
       rollingAverage.push(valid.length - previousValidCount);
@@ -187,8 +195,8 @@ const crackOneTimePad = (
       console.log(
         `up to count: ${wordCount}, valid count: ${
           valid.length
-        }. Rolling average: ${average} per ${distanceBetwenUpdates} words. Processing: ${Math.round(
-          distanceBetwenUpdates / totalSeconds
+        }. Rolling average: ${average} per ${distanceBetweenUpdates} words. Processing: ${Math.round(
+          distanceBetweenUpdates / totalSeconds
         )} words per second`
       );
       hrStart = process.hrtime();
@@ -214,15 +222,27 @@ const crackOneTimePad = (
   unDefinedFreq.forEach((entry) => print(entry));
 };
 
-const print = ({ M, start, end, freq, word }: IPrint) => {
+const print = ({ M, start, end, freq, word, realM_Prime }: IPrint) => {
   console.log(
-    `"` +
+    `predicted M_Prime: ` +
+      `"` +
       M.slice(0, start) +
       chalk.green(M.slice(start, end)) +
       M.slice(end) +
       `"` +
       `     from: ${start} to ${end}, freq: ${freq}, word: ${word}`
   );
+  if (realM_Prime) {
+    console.log(
+      `real M_prime:      ` +
+        `"` +
+        realM_Prime.slice(0, start) +
+        chalk.green(realM_Prime.slice(start, end)) +
+        realM_Prime.slice(end) +
+        `"`
+    );
+  }
+  console.log("\n");
 };
 
 /*
@@ -255,10 +275,12 @@ const checkValidWithRegex = (sentence: string): boolean => {
 function myTest() {
   const k =
     "0100111100011100010011100100011000111010110001110011000111011010010110110111001001111111100011100101110110001100010100100011001111011000101010100000001101000010011100010000000000110111111010100011100110101101011000010111011100100010011001011001111110010010011011010001001011110100011010000001101111000000100100001001000110101111010001110111110101011011110111001101001101000100001001011001100110100010011001010010110110000100001110001000010110100101110001110010010101010111001111011001111100011100111000010010011001010110010100010101011001101001101011111111100101010100011000101111110100100110000011111011010010101000101110111110100100011010010101000000011001001101101011001101111001001000110111001001100101110010101011001000011100111100101010101011001001111010001111000011101001000010110000001101110010110011110000000000000010011110100100000011010";
-  const M =
-    "Seafood is food made from fish or other sea animals (such as shrimp and lobsters). The harvesting (collecting) of seafood";
+
   const M_Prime =
     "Society is often considered in terms of citizenship, rights, and ethics. The strength and unity of any society's members'";
+  const M =
+    "Seafood is food made from fish or other sea animals (such as shrimp and lobsters). The harvesting (collecting) of seafood";
+
   const M_Prime_almost =
     "Society    often considered    terms    citizenship  rights            . The          and unity                  members ";
   const C = XORStrings(unicodeToBitsAsString(M), k);
@@ -268,7 +290,7 @@ function myTest() {
   /*
    * Make sure to have the keys with included spaces around them. The number
    * is the index at which the WORD starts, not any trailing spaces. Subtract
-   * ones from the index if you have a preceding space.
+   * one from the index if you have a preceding space.
    * */
   const wordsInMPrimeSoFar: { [word: string]: number[] } = {
     // " and unity of ": [85],
@@ -284,7 +306,7 @@ function myTest() {
     // " shrimp ": [59],
   };
 
-  crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
+  crackOneTimePad({ C, C_Prime, wordsInMPrimeSoFar, realM_Prime: M_Prime });
 }
 
 function udacityTest() {
@@ -306,7 +328,7 @@ function udacityTest() {
     // digit: [61],
     // time: [13],
   };
-  crackOneTimePad(C, C_Prime, wordsInMPrimeSoFar);
+  crackOneTimePad({ C, C_Prime, wordsInMPrimeSoFar });
 }
 
 myTest();
