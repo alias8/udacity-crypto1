@@ -40,7 +40,7 @@ var textByLine = text
         allowedTwoLetterWords[word] ||
         allowedOneLetterWords[word];
 })
-    .slice(0, 1000);
+    .slice(0);
 /*
  * Define lookup table that counts the number of times a suffix and prefix
  * appears in the 30,000 word list. Suffixes and prefixes are max 3 letters long.
@@ -108,6 +108,9 @@ var crackOneTimePad = function (_a) {
     var hrEnd;
     textByLine.forEach(function (word, wordCount) {
         _.range(0, C.length / utils_1.DEFAULT_UNICODE_LENGTH - word.length).forEach(function (numberOfLeadingSpaces) {
+            if (word === "producing") {
+                var t = 2;
+            }
             // if all slots we are looking at are spacers
             if (MPrimeSoFar.slice(numberOfLeadingSpaces + 1, numberOfLeadingSpaces + 1 + word.length).every(function (o) { return o === SPACER; })) {
                 var M_Prime = utils_1.padWithSpaces(word, numberOfLeadingSpaces, C.length);
@@ -134,18 +137,24 @@ var crackOneTimePad = function (_a) {
                 }
             }
         });
-        if (wordCount % distanceBetweenUpdates === 0) {
-            hrEnd = process.hrtime(hrStart);
-            var totalSeconds = hrEnd[0] + hrEnd[1] / Math.pow(10, 9);
-            rollingAverage.push(valid.length - previousValidCount);
-            if (rollingAverage.length > 10) {
-                rollingAverage.shift();
-            }
-            var average = Math.round(_.mean(rollingAverage));
-            previousValidCount = valid.length;
-            console.log("up to count: " + wordCount + ", valid count: " + valid.length + ". Rolling average: " + average + " per " + distanceBetweenUpdates + " words. Processing: " + Math.round(distanceBetweenUpdates / totalSeconds) + " words per second");
-            hrStart = process.hrtime();
-        }
+        // if (wordCount % distanceBetweenUpdates === 0) {
+        //   hrEnd = process.hrtime(hrStart);
+        //   const totalSeconds = hrEnd[0] + hrEnd[1] / 10 ** 9;
+        //   rollingAverage.push(valid.length - previousValidCount);
+        //   if (rollingAverage.length > 10) {
+        //     rollingAverage.shift();
+        //   }
+        //   const average = Math.round(_.mean(rollingAverage));
+        //   previousValidCount = valid.length;
+        //   console.log(
+        //     `up to count: ${wordCount}, valid count: ${
+        //       valid.length
+        //     }. Rolling average: ${average} per ${distanceBetweenUpdates} words. Processing: ${Math.round(
+        //       distanceBetweenUpdates / totalSeconds
+        //     )} words per second`
+        //   );
+        //   hrStart = process.hrtime();
+        // }
     });
     valid = _.orderBy(valid, [function (o) { return o.word.length; }, function (o) { return o.freq; }], ["desc", "desc"]);
     var singleSection = valid.filter(function (o) { return o.sections === 1; });
@@ -201,26 +210,27 @@ function myTest() {
     var k = "0100111100011100010011100100011000111010110001110011000111011010010110110111001001111111100011100101110110001100010100100011001111011000101010100000001101000010011100010000000000110111111010100011100110101101011000010111011100100010011001011001111110010010011011010001001011110100011010000001101111000000100100001001000110101111010001110111110101011011110111001101001101000100001001011001100110100010011001010010110110000100001110001000010110100101110001110010010101010111001111011001111100011100111000010010011001010110010100010101011001101001101011111111100101010100011000101111110100100110000011111011010010101000101110111110100100011010010101000000011001001101101011001101111001001000110111001001100101110010101011001000011100111100101010101011001001111010001111000011101001000010110000001101110010110011110000000000000010011110100100000011010";
     var M_Prime = "Society is often considered in terms of citizenship, rights, and ethics. The strength and unity of any society's members'";
     var M = "Seafood is food made from fish or other sea animals (such as shrimp and lobsters). The harvesting (collecting) of seafood";
-    var M_Prime_almost = "Society    often considered    terms    citizenship  rights            . The          and unity                  members ";
+    var M_Prime_almost = "Society    often considered    terms    citizenship  rights              The          and unity                  members ";
+    var M_Prime_almost1 = "                 considered                                                                                              ";
     var C = utils_1.XORStrings(utils_1.unicodeToBitsAsString(M), k);
     var C_Prime = utils_1.XORStrings(utils_1.unicodeToBitsAsString(M_Prime), k);
-    var b = testPossibleM_Prime(M_Prime_almost, utils_1.XORStrings(C, C_Prime)); // see how close the output looks when we almost have it?
+    var b = testPossibleM_Prime(M_Prime_almost1, utils_1.XORStrings(C, C_Prime)); // see how close the output looks when we almost have it?
     /*
      * Make sure to have the keys with included spaces around them. The number
      * is the index at which the WORD starts, not any trailing spaces. Subtract
      * one from the index if you have a preceding space.
      * */
     var wordsInMPrimeSoFar = {
-    // " and unity of ": [85],
-    // "society ": [0],
-    // " often ": [9],
-    // " and eth ": [59],
+        " and unity of ": [85],
+        "society ": [0],
+        " often ": [9],
+        " and eth ": [59],
     };
     // swap out M for M prime if you're sure about some of the words in M
     var wordsInMSoFar = {
-    // " made from fi": [15],
-    // " harvesting ": [86],
-    // " shrimp ": [59],
+        " made from fi": [15],
+        " harvesting ": [86],
+        " shrimp ": [59],
     };
     crackOneTimePad({ C: C, C_Prime: C_Prime, wordsInMPrimeSoFar: wordsInMPrimeSoFar, realM_Prime: M_Prime });
 }
@@ -236,12 +246,11 @@ function udacityTest() {
      * ones from the index if you have a preceding space.
      * */
     var wordsInMPrimeSoFar = {
-    // shannon: [112],
-    // the: [89],
-    // digit: [61],
-    // time: [13],
+        "i visualize a time when we will be to robots what dogs are to humans, and i'm rooting for the machines.  (Claude Shannon)": [
+            0,
+        ],
     };
     crackOneTimePad({ C: C, C_Prime: C_Prime, wordsInMPrimeSoFar: wordsInMPrimeSoFar });
 }
-myTest();
+udacityTest();
 //# sourceMappingURL=index.js.map

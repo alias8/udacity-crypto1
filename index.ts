@@ -55,7 +55,7 @@ const textByLine = text
       allowedTwoLetterWords[word] ||
       allowedOneLetterWords[word]
   )
-  .slice(0, 1000);
+  .slice(0);
 
 /*
  * Define lookup table that counts the number of times a suffix and prefix
@@ -149,7 +149,11 @@ const crackOneTimePad = ({
   textByLine.forEach((word, wordCount) => {
     _.range(0, C.length / DEFAULT_UNICODE_LENGTH - word.length).forEach(
       (numberOfLeadingSpaces) => {
+        if (word === "producing") {
+          const t = 2;
+        }
         // if all slots we are looking at are spacers
+
         if (
           MPrimeSoFar.slice(
             numberOfLeadingSpaces + 1,
@@ -183,24 +187,24 @@ const crackOneTimePad = ({
         }
       }
     );
-    if (wordCount % distanceBetweenUpdates === 0) {
-      hrEnd = process.hrtime(hrStart);
-      const totalSeconds = hrEnd[0] + hrEnd[1] / 10 ** 9;
-      rollingAverage.push(valid.length - previousValidCount);
-      if (rollingAverage.length > 10) {
-        rollingAverage.shift();
-      }
-      const average = Math.round(_.mean(rollingAverage));
-      previousValidCount = valid.length;
-      console.log(
-        `up to count: ${wordCount}, valid count: ${
-          valid.length
-        }. Rolling average: ${average} per ${distanceBetweenUpdates} words. Processing: ${Math.round(
-          distanceBetweenUpdates / totalSeconds
-        )} words per second`
-      );
-      hrStart = process.hrtime();
-    }
+    // if (wordCount % distanceBetweenUpdates === 0) {
+    //   hrEnd = process.hrtime(hrStart);
+    //   const totalSeconds = hrEnd[0] + hrEnd[1] / 10 ** 9;
+    //   rollingAverage.push(valid.length - previousValidCount);
+    //   if (rollingAverage.length > 10) {
+    //     rollingAverage.shift();
+    //   }
+    //   const average = Math.round(_.mean(rollingAverage));
+    //   previousValidCount = valid.length;
+    //   console.log(
+    //     `up to count: ${wordCount}, valid count: ${
+    //       valid.length
+    //     }. Rolling average: ${average} per ${distanceBetweenUpdates} words. Processing: ${Math.round(
+    //       distanceBetweenUpdates / totalSeconds
+    //     )} words per second`
+    //   );
+    //   hrStart = process.hrtime();
+    // }
   });
 
   valid = _.orderBy(
@@ -282,10 +286,12 @@ function myTest() {
     "Seafood is food made from fish or other sea animals (such as shrimp and lobsters). The harvesting (collecting) of seafood";
 
   const M_Prime_almost =
-    "Society    often considered    terms    citizenship  rights            . The          and unity                  members ";
+    "Society    often considered    terms    citizenship  rights              The          and unity                  members ";
+  const M_Prime_almost1 =
+    "                 considered                                                                                              ";
   const C = XORStrings(unicodeToBitsAsString(M), k);
   const C_Prime = XORStrings(unicodeToBitsAsString(M_Prime), k);
-  const b = testPossibleM_Prime(M_Prime_almost, XORStrings(C, C_Prime)); // see how close the output looks when we almost have it?
+  const b = testPossibleM_Prime(M_Prime_almost1, XORStrings(C, C_Prime)); // see how close the output looks when we almost have it?
 
   /*
    * Make sure to have the keys with included spaces around them. The number
@@ -293,17 +299,17 @@ function myTest() {
    * one from the index if you have a preceding space.
    * */
   const wordsInMPrimeSoFar: { [word: string]: number[] } = {
-    // " and unity of ": [85],
-    // "society ": [0],
-    // " often ": [9],
-    // " and eth ": [59],
+    " and unity of ": [85],
+    "society ": [0],
+    " often ": [9],
+    " and eth ": [59],
   };
 
   // swap out M for M prime if you're sure about some of the words in M
   const wordsInMSoFar: { [word: string]: number[] } = {
-    // " made from fi": [15],
-    // " harvesting ": [86],
-    // " shrimp ": [59],
+    " made from fi": [15],
+    " harvesting ": [86],
+    " shrimp ": [59],
   };
 
   crackOneTimePad({ C, C_Prime, wordsInMPrimeSoFar, realM_Prime: M_Prime });
@@ -323,12 +329,15 @@ function udacityTest() {
    * ones from the index if you have a preceding space.
    * */
   const wordsInMPrimeSoFar: { [word: string]: number[] } = {
-    // shannon: [112],
-    // the: [89],
-    // digit: [61],
-    // time: [13],
+    "i visualize a time when we will be to robots what dogs are to humans, and i'm rooting for the machines.  (Claude Shannon)": [
+      0,
+    ],
+    // "Anyone who considers arithmetical methods of producing random digits is, of course, in a state of sin. (john von neumann)": [
+    //   0,
+    // ],
   };
+
   crackOneTimePad({ C, C_Prime, wordsInMPrimeSoFar });
 }
 
-myTest();
+udacityTest();
