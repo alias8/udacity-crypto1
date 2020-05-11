@@ -4,6 +4,9 @@ export class BlockSymmetricCipher {
   static DEFAULT_UNICODE_LENGTH = 8;
   static BLOCK_SIZE = 128;
   static PADDING_CHARACTER = String.fromCharCode(128);
+  static IV = _.range(0, BlockSymmetricCipher.BLOCK_SIZE)
+    .map((i) => "0")
+    .join("");
 
   private padToBlockSize = (unicodeBinaryString: string) => {
     return _.padEnd(
@@ -116,6 +119,72 @@ export class BlockSymmetricCipher {
     ).trim();
   };
 
+  public cipherBlockChainingEncrypt = (
+    message: string,
+    key: string
+  ): string => {
+    if (key.charAt(0) !== "0" && key.charAt(0) !== "1") {
+      throw Error(`key must be a string of 0's and 1's. Received: ${key}`);
+    }
+    const messageUnicodeString = this.unicodeToBitsAsString(message); // convert to binary string
+    let messageUnicodeBlocks: string[] = [];
+    for (
+      let i = 0;
+      i < messageUnicodeString.length;
+      i += BlockSymmetricCipher.BLOCK_SIZE
+    ) {
+      messageUnicodeBlocks.push(
+        messageUnicodeString.slice(i, i + BlockSymmetricCipher.BLOCK_SIZE)
+      );
+    }
+    let cipherBlocks: string[] = [];
+    for (let i = 0; i < messageUnicodeBlocks.length; i++) {
+      cipherBlocks.push(
+        this.XORStrings(
+          this.XORStrings(
+            i === 0 ? BlockSymmetricCipher.IV : cipherBlocks[i - 1],
+            messageUnicodeBlocks[i]
+          ),
+          key
+        )
+      );
+    }
+    return cipherBlocks.join("");
+  };
+
+  public cipherBlockChainingDecrypt = (
+    cipherText: string,
+    key: string
+  ): string => {
+    if (key.charAt(0) !== "0" && key.charAt(0) !== "1") {
+      throw Error(`key must be a string of 0's and 1's. Received: ${key}`);
+    }
+    let cipherTextBlocks: string[] = [];
+    for (
+      let i = 0;
+      i < cipherText.length;
+      i += BlockSymmetricCipher.BLOCK_SIZE
+    ) {
+      cipherTextBlocks.push(
+        cipherText.slice(i, i + BlockSymmetricCipher.BLOCK_SIZE)
+      );
+    }
+
+    let messageBlocks: string[] = [];
+    for (let i = 0; i < cipherTextBlocks.length; i++) {
+      messageBlocks.push(
+        this.XORStrings(
+          this.XORStrings(
+            i === 0 ? BlockSymmetricCipher.IV : cipherTextBlocks[i - 1],
+            cipherTextBlocks[i]
+          ),
+          key
+        )
+      );
+    }
+    return this.binaryToUnicode(messageBlocks.join(""));
+  };
+
   /*
    * XOR two strings of 1's and 0's together
    * */
@@ -139,6 +208,7 @@ export class BlockSymmetricCipher {
       .map((index) => Math.round(Math.random()).toString())
       .join("");
   };
+
   private padWithSpaces = (
     chars: string,
     leadingSpaces: number,
@@ -166,6 +236,6 @@ const crypto = new BlockSymmetricCipher();
 const m =
   "hello world how are you today the quick brown fox jumps over the lazy dog";
 const key = crypto.getRandomKey();
-const tt = crypto.oneTimePadEncrypt(m, key);
-const gg = crypto.oneTimePadDecrypt(tt, key);
+const tt = crypto.cipherBlockChainingEncrypt(m, key);
+const gg = crypto.cipherBlockChainingDecrypt(tt, key);
 const bb = 2;
