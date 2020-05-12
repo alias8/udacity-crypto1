@@ -1,12 +1,20 @@
 import * as _ from "lodash";
+import crypto from "crypto";
 
 export class BlockSymmetricCipher {
-  static DEFAULT_UNICODE_LENGTH = 8;
-  static BLOCK_SIZE = 128;
+  static DEFAULT_UNICODE_LENGTH = 128;
+  static BLOCK_SIZE = 2;
   static PADDING_CHARACTER = String.fromCharCode(128);
   static IV = _.range(0, BlockSymmetricCipher.BLOCK_SIZE)
     .map((i) => "0")
     .join("");
+  private NONCE: string;
+
+  constructor() {
+    this.NONCE = this.getRandomKey(
+      BlockSymmetricCipher.DEFAULT_UNICODE_LENGTH / 2
+    );
+  }
 
   private padToBlockSize = (unicodeBinaryString: string) => {
     return _.padEnd(
@@ -138,12 +146,14 @@ export class BlockSymmetricCipher {
       );
     }
     let cipherBlocks: string[] = [];
+    var mykey = crypto.createCipheriv("aes-128-cbc", key, null);
     for (let i = 0; i < messageUnicodeBlocks.length; i++) {
       cipherBlocks.push(
+        // assuming the Encrypt function is just an XOR
         this.XORStrings(
           this.XORStrings(
-            i === 0 ? BlockSymmetricCipher.IV : cipherBlocks[i - 1],
-            messageUnicodeBlocks[i]
+            messageUnicodeBlocks[i],
+            i === 0 ? BlockSymmetricCipher.IV : cipherBlocks[i - 1]
           ),
           key
         )
@@ -183,6 +193,37 @@ export class BlockSymmetricCipher {
       );
     }
     return this.binaryToUnicode(messageBlocks.join(""));
+  };
+
+  public counterMode = (message: string, key: string): string => {
+    if (key.charAt(0) !== "0" && key.charAt(0) !== "1") {
+      throw Error(`key must be a string of 0's and 1's. Received: ${key}`);
+    }
+    const messageUnicodeString = this.unicodeToBitsAsString(message); // convert to binary string
+    let messageUnicodeBlocks: string[] = [];
+    for (
+      let i = 0;
+      i < messageUnicodeString.length;
+      i += BlockSymmetricCipher.BLOCK_SIZE
+    ) {
+      messageUnicodeBlocks.push(
+        messageUnicodeString.slice(i, i + BlockSymmetricCipher.BLOCK_SIZE)
+      );
+    }
+    let cipherBlocks: string[] = [];
+    for (let i = 0; i < messageUnicodeBlocks.length; i++) {
+      cipherBlocks.push(
+        // assuming the Encrypt function is just an XOR
+        this.XORStrings(
+          this.XORStrings(
+            messageUnicodeBlocks[i],
+            i === 0 ? BlockSymmetricCipher.IV : cipherBlocks[i - 1]
+          ),
+          key
+        )
+      );
+    }
+    return cipherBlocks.join("");
   };
 
   /*
@@ -231,11 +272,11 @@ export class BlockSymmetricCipher {
   };
 }
 
-const crypto = new BlockSymmetricCipher();
+const util = new BlockSymmetricCipher();
 
-const m =
-  "hello world how are you today the quick brown fox jumps over the lazy dog";
-const key = crypto.getRandomKey();
-const tt = crypto.cipherBlockChainingEncrypt(m, key);
-const gg = crypto.cipherBlockChainingDecrypt(tt, key);
+const m = "the quick brown fox jumps over the lazy dog";
+const key = util.getRandomKey();
+const rr = crypto.createCipheriv();
+const tt = util.cipherBlockChainingEncrypt(m, key);
+const gg = util.cipherBlockChainingDecrypt(tt, key);
 const bb = 2;
